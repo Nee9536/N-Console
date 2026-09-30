@@ -27,18 +27,8 @@ from PySide6.QtWidgets import (
 , QPlainTextEdit)
 
 APP_NAME = "N-Console"
-APP_VERSION = "22.0.2"
+APP_VERSION = "22.0.3"
 DEVELOPER = "Mr. Neeraj Kumar (IT System Administration)"
-
-
-def run_hidden(*args, **kwargs):
-    """Run a subprocess without creating a visible Windows console window."""
-    if platform.system().lower() == "windows":
-        kwargs.setdefault(
-            "creationflags",
-            getattr(subprocess, "CREATE_NO_WINDOW", 0)
-        )
-    return subprocess.run(*args, **kwargs)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 if getattr(sys, "frozen", False):
     BASE_DIR = os.path.dirname(sys.executable)
@@ -112,6 +102,20 @@ class HistoryDB:
         with self.lock:
             self.conn.execute("DELETE FROM history")
             self.conn.commit()
+
+
+
+def _run_hidden(*args, **kwargs):
+    """Run a background OS command without creating a Windows console window."""
+    if platform.system().lower() == "windows":
+        kwargs.setdefault("creationflags", getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        startupinfo = kwargs.get("startupinfo")
+        if startupinfo is None:
+            startupinfo = subprocess.STARTUPINFO()
+            startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+            startupinfo.wShowWindow = subprocess.SW_HIDE
+            kwargs["startupinfo"] = startupinfo
+    return subprocess.run(*args, **kwargs)
 
 
 def run_client(protocol, host, port, username):
@@ -1730,7 +1734,7 @@ class ScanWorker(QObject):
                     "if($a){ '{0}|{1}' -f $_.IPAddress,$a.MacAddress } "
                     "}"
                 )
-                p = run_hidden(
+                p = _run_hidden(
                     ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass",
                      "-Command", ps],
                     capture_output=True, text=True, errors="ignore", timeout=5
@@ -1746,7 +1750,7 @@ class ScanWorker(QObject):
                         result[ip] = mac.upper()
             else:
                 # Linux fallback: /sys/class/net/<iface>/address + ip command.
-                p = run_hidden(
+                p = _run_hidden(
                     ["ip", "-o", "-4", "addr", "show"],
                     capture_output=True, text=True, errors="ignore", timeout=3
                 )
@@ -1774,7 +1778,7 @@ class ScanWorker(QObject):
         else:
             cmd = ["ping", "-c", "1", "-W", "1", ip]
         started = time.perf_counter()
-        p = run_hidden(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        p = _run_hidden(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         elapsed = round((time.perf_counter() - started) * 1000)
         return p.returncode == 0, elapsed
 
@@ -1805,7 +1809,7 @@ class ScanWorker(QObject):
                 ip_re = re.compile(r"(?<![0-9.])" + re.escape(ip) + r"(?![0-9.])")
 
                 # First try the complete ARP table.
-                p = run_hidden(
+                p = _run_hidden(
                     ["arp", "-a"],
                     capture_output=True, text=True, errors="ignore",
                     timeout=2
@@ -1824,7 +1828,7 @@ class ScanWorker(QObject):
                     + "' -ErrorAction SilentlyContinue | "
                       "Select-Object -ExpandProperty LinkLayerAddress"
                 )
-                p2 = run_hidden(
+                p2 = _run_hidden(
                     ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", ps],
                     capture_output=True, text=True, errors="ignore",
                     timeout=3
@@ -1835,7 +1839,7 @@ class ScanWorker(QObject):
                         return m.group(0).replace(":", "-").upper()
 
                 # Legacy netsh neighbor table fallback.
-                p3 = run_hidden(
+                p3 = _run_hidden(
                     ["netsh", "interface", "ip", "show", "neighbors"],
                     capture_output=True, text=True, errors="ignore",
                     timeout=3
@@ -1847,7 +1851,7 @@ class ScanWorker(QObject):
                             return m.group(0).upper()
 
             else:
-                p = run_hidden(
+                p = _run_hidden(
                     ["ip", "neigh", "show", ip],
                     capture_output=True, text=True, errors="ignore",
                     timeout=2
@@ -1856,7 +1860,7 @@ class ScanWorker(QObject):
                 if m:
                     return m.group(1).replace(":", "-").upper()
 
-                p = run_hidden(
+                p = _run_hidden(
                     ["arp", "-n", ip],
                     capture_output=True, text=True, errors="ignore",
                     timeout=2
@@ -1884,7 +1888,7 @@ class ScanWorker(QObject):
         if platform.system().lower() == "windows":
             # 2) ping -a often resolves local DNS/hosts/NetBIOS names.
             try:
-                p = run_hidden(
+                p = _run_hidden(
                     ["ping", "-a", "-n", "1", "-w", "350", ip],
                     capture_output=True, text=True, errors="ignore", timeout=1.2
                 )
@@ -1903,7 +1907,7 @@ class ScanWorker(QObject):
 
             # 3) nbtstat -A can resolve Windows/NetBIOS hosts even without DNS.
             try:
-                p = run_hidden(
+                p = _run_hidden(
                     ["nbtstat", "-A", ip],
                     capture_output=True, text=True, errors="ignore", timeout=2
                 )
@@ -1924,7 +1928,7 @@ class ScanWorker(QObject):
                     "' -Type PTR -ErrorAction SilentlyContinue | "
                     "Select-Object -ExpandProperty NameHost"
                 )
-                p = run_hidden(
+                p = _run_hidden(
                     ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass",
                      "-Command", ps],
                     capture_output=True, text=True, errors="ignore", timeout=2
@@ -2002,7 +2006,7 @@ class ScanWorker(QObject):
             # targets, a fresh one-packet ping is a lightweight ARP refresh.
             try:
                 if platform.system().lower() == "windows":
-                    run_hidden(
+                    _run_hidden(
                         ["ping", "-n", "1", "-w", "250", ip],
                         stdout=subprocess.DEVNULL,
                         stderr=subprocess.DEVNULL,
@@ -2024,13 +2028,13 @@ class ScanWorker(QObject):
         if mac == "-" and reachable:
             try:
                 if platform.system().lower() == "windows":
-                    run_hidden(
+                    _run_hidden(
                         ["arp", "-d", ip],
                         stdout=subprocess.DEVNULL,
                         stderr=subprocess.DEVNULL,
                         timeout=0.8
                     )
-                    run_hidden(
+                    _run_hidden(
                         ["ping", "-n", "1", "-w", "500", ip],
                         stdout=subprocess.DEVNULL,
                         stderr=subprocess.DEVNULL,
@@ -2527,18 +2531,20 @@ class ScannerPage(QWidget):
 
 
 class PingRoutePage(QWidget):
-    """Single-host ping and traceroute diagnostics."""
+    """Single-host ping and traceroute diagnostics with live auto-scrolling output."""
 
     def __init__(self):
         super().__init__()
-        self.ping_timer = QTimer(self)
-        self.ping_timer.timeout.connect(self.refresh_ping)
-        self._ping_active = False
         self._ping_target = ""
-        self._ping_remaining = 0
         self._ping_sent = 0
         self._ping_received = 0
-        self._ping_lines = []
+        self._user_stopped = False
+
+        self._ping_process = QProcess(self)
+        self._ping_process.setProcessChannelMode(QProcess.MergedChannels)
+        self._ping_process.readyReadStandardOutput.connect(self._read_ping_output)
+        self._ping_process.finished.connect(self._ping_finished)
+        self._ping_process.errorOccurred.connect(self._ping_error)
 
         root = QVBoxLayout(self)
         root.setContentsMargins(28, 24, 28, 22)
@@ -2547,7 +2553,7 @@ class PingRoutePage(QWidget):
         title = QLabel("Ping & Route Diagnostics")
         title.setObjectName("pageTitle")
         sub = QLabel(
-            "Test one IP/hostname, measure latency and packet loss, and trace its network path."
+            "Test one IP/hostname, watch live ping replies, measure latency and packet loss, and trace its network path."
         )
         sub.setObjectName("pageSub")
         root.addWidget(title)
@@ -2558,12 +2564,16 @@ class PingRoutePage(QWidget):
         self.target.setPlaceholderText("192.168.0.16 or hostname")
         self.target.setMinimumWidth(300)
         self.count = QSpinBox()
-        self.count.setRange(1, 100)
+        self.count.setRange(1, 1000)
         self.count.setValue(4)
+        self.continuous = QCheckBox("Continuous (-t)")
+        self.continuous.setChecked(True)
+        self.continuous.setToolTip("Keep pinging continuously like Windows ping -t until Stop is pressed.")
 
         for label, widget in [("Target:", self.target), ("Count:", self.count)]:
             controls.addWidget(QLabel(label))
             controls.addWidget(widget)
+        controls.addWidget(self.continuous)
 
         ping = QPushButton("Ping")
         ping.setObjectName("primaryButton")
@@ -2618,87 +2628,98 @@ class PingRoutePage(QWidget):
             return None
         return value
 
+    def _append_live_output(self, text):
+        if not text:
+            return
+        self.output.moveCursor(QTextCursor.End)
+        self.output.insertPlainText(text)
+        self.output.moveCursor(QTextCursor.End)
+        self.output.ensureCursorVisible()
+
     def start_ping(self):
         target = self._target()
         if not target:
             return
-        self.stop_ping()
+        self.stop_ping(silent=True)
         self.output.clear()
         self._ping_target = target
-        self._ping_remaining = self.count.value()
         self._ping_sent = 0
         self._ping_received = 0
-        self._ping_lines = []
-        self._ping_active = True
+        self._user_stopped = False
         self.ping_status.set_value("Running")
         self.latency.set_value("—")
         self.loss.set_value("0%")
-        self.summary.setText(f"Pinging {target}...")
-        self.refresh_ping()
-        self.ping_timer.start(1000)
+        mode = "continuous" if self.continuous.isChecked() else f"{self.count.value()} packets"
+        self.summary.setText(f"Pinging {target} ({mode}) — live output auto-scrolls.")
 
-    def refresh_ping(self):
-        if not self._ping_active or self._ping_remaining <= 0:
-            self.ping_timer.stop()
+        if platform.system().lower() == "windows":
+            args = (["-t", target] if self.continuous.isChecked()
+                    else ["-n", str(self.count.value()), target])
+        else:
+            args = (["-c", "1000000", target] if self.continuous.isChecked()
+                    else ["-c", str(self.count.value()), target])
+
+        self._ping_process.start("ping", args)
+
+    def _read_ping_output(self):
+        data = bytes(self._ping_process.readAllStandardOutput())
+        if not data:
             return
+        text = data.decode(errors="replace")
+        self._append_live_output(text)
 
-        target = self._ping_target
-        cmd = ["ping", "-n", "1", "-w", "1000", target] if platform.system().lower() == "windows" \
-              else ["ping", "-c", "1", "-W", "1", target]
+        # Update counters from live reply/timeout lines without waiting for ping to finish.
+        reply_matches = re.findall(r"(?im)^(?:Reply from|[0-9a-f:]+.*bytes from)\b", text)
+        timeout_matches = re.findall(r"(?im)^(?:Request timed out|Destination host unreachable|.*100% packet loss)", text)
+        self._ping_received += len(reply_matches)
+        self._ping_sent += len(reply_matches) + len(timeout_matches)
 
-        self._ping_sent += 1
-        try:
-            result = run_hidden(
-                cmd, capture_output=True, text=True,
-                errors="replace", timeout=3
-            )
-            output = (result.stdout or "") + (result.stderr or "")
-            self._ping_lines.append(output.strip())
-            self.output.setPlainText("\n\n".join(self._ping_lines))
+        match = re.search(r"time\s*[=<]\s*(\d+(?:\.\d+)?)\s*ms", text, re.I)
+        if match:
+            self.latency.set_value(f"{match.group(1)} ms")
+        elif re.search(r"time\s*<\s*1\s*ms", text, re.I):
+            self.latency.set_value("<1 ms")
 
-            if result.returncode == 0:
-                self._ping_received += 1
-                match = re.search(r"time\s*[=<]\s*(\d+(?:\.\d+)?)\s*ms", output, re.I)
-                if match:
-                    self.latency.set_value(f"{match.group(1)} ms")
-                else:
-                    # Windows may display <1ms.
-                    if re.search(r"time<1ms", output, re.I):
-                        self.latency.set_value("<1 ms")
-                self.ping_status.set_value("Reachable")
-            else:
-                self.ping_status.set_value("No Reply")
-        except subprocess.TimeoutExpired:
-            self._ping_lines.append(f"{target}: timeout")
-            self.output.setPlainText("\n\n".join(self._ping_lines))
-            self.ping_status.set_value("Timeout")
-        except Exception as exc:
-            self._ping_lines.append(f"Error: {exc}")
-            self.output.setPlainText("\n\n".join(self._ping_lines))
-            self.ping_status.set_value("Error")
-
-        self._ping_remaining -= 1
-        loss = 100 - round((self._ping_received / self._ping_sent) * 100)
-        self.loss.set_value(f"{loss}%")
-
-        if self._ping_remaining <= 0:
-            self._ping_active = False
-            self.ping_timer.stop()
+        if self._ping_sent:
+            loss = 100 - round((self._ping_received / self._ping_sent) * 100)
+            self.loss.set_value(f"{loss}%")
             self.summary.setText(
-                f"Ping complete: {self._ping_received}/{self._ping_sent} replies received."
+                f"Pinging {self._ping_target} — {self._ping_received}/{self._ping_sent} replies received."
             )
+        if self._ping_received:
+            self.ping_status.set_value("Reachable")
 
-    def stop_ping(self):
-        self._ping_active = False
-        self.ping_timer.stop()
-        if hasattr(self, "summary"):
+    def _ping_finished(self, exit_code, exit_status):
+        if self._user_stopped:
+            return
+        self.ping_status.set_value("Complete")
+        if self._ping_sent:
+            loss = 100 - round((self._ping_received / self._ping_sent) * 100)
+            self.loss.set_value(f"{loss}%")
+        self.summary.setText(
+            f"Ping complete: {self._ping_received}/{self._ping_sent} replies received."
+        )
+
+    def _ping_error(self, error):
+        if not self._user_stopped:
+            self.ping_status.set_value("Error")
+            self.summary.setText("Ping process could not be started.")
+
+    def stop_ping(self, silent=False):
+        running = self._ping_process.state() != QProcess.NotRunning
+        self._user_stopped = True
+        if running:
+            self._ping_process.kill()
+            self._ping_process.waitForFinished(700)
+        if not silent:
+            self.ping_status.set_value("Stopped")
             self.summary.setText("Ping stopped.")
 
     def trace_route(self):
         target = self._target()
         if not target:
             return
-        self.stop_ping()
+        self.stop_ping(silent=True)
         self.output.clear()
         self.hops.set_value("Running")
         self.summary.setText(f"Tracing route to {target}...")
@@ -2707,12 +2728,14 @@ class PingRoutePage(QWidget):
               else ["traceroute", "-n", target]
 
         try:
-            result = run_hidden(
+            result = _run_hidden(
                 cmd, capture_output=True, text=True,
                 errors="replace", timeout=90
             )
             output = (result.stdout or "") + (result.stderr or "")
             self.output.setPlainText(output.strip() or "No traceroute output.")
+            self.output.moveCursor(QTextCursor.End)
+            self.output.ensureCursorVisible()
             hop_count = len(re.findall(r"^\s*\d+\s+", output, re.MULTILINE))
             self.hops.set_value(str(hop_count) if hop_count else "—")
             self.summary.setText(
@@ -2722,9 +2745,7 @@ class PingRoutePage(QWidget):
             )
         except FileNotFoundError:
             self.hops.set_value("Unavailable")
-            self.output.setPlainText(
-                "Traceroute utility was not found on this system."
-            )
+            self.output.setPlainText("Traceroute utility was not found on this system.")
             self.summary.setText("Windows uses built-in tracert.")
         except subprocess.TimeoutExpired:
             self.hops.set_value("Timeout")
@@ -2736,7 +2757,7 @@ class PingRoutePage(QWidget):
             self.summary.setText("Trace route failed.")
 
     def clear_output(self):
-        self.stop_ping()
+        self.stop_ping(silent=True)
         self.output.clear()
         self.ping_status.set_value("Ready")
         self.latency.set_value("—")

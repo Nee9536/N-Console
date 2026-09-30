@@ -18,7 +18,7 @@ if not defined ISCC (
 )
 
 echo.
-echo Compiling N-Console 22.0.2 x64 installer...
+echo Compiling N-Console 22.0.3 x64 installer...
 "%ISCC%" "installer\N-Console-x64.iss"
 if errorlevel 1 goto :error
 

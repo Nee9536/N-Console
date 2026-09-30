@@ -1,5 +1,5 @@
 <<<<<<< HEAD
-# N-Console 22.0.2 — Final Installer-Ready Source
+# N-Console 22.0.3 — Final Installer-Ready Source
 
 ## Compatibility strategy
 
@@ -260,15 +260,15 @@ Predefined diagnostic modules:
 - Inno Setup x86/x64 version metadata updated to 1.2.0.
 
 
-## v22.0.1 — Scanner Thread Safety Fix
+## v22.0.3 — Scanner Thread Safety Fix
 - Fixed PySide6 cross-thread UI updates during IP scanning.
 - Scanner worker signals now use QObject-bound queued slots instead of lambdas.
 - Cancel/restart can safely be used without closing N-Console.
 - Stale results from a cancelled scan are ignored.
-- Version updated to 22.0.1.
+- Version updated to 22.0.3.
 
 
-## v22.0.1 Scanner ordering fix
+## v22.0.3 Scanner ordering fix
 
 - Live IP Scanner rows are inserted in numeric IPv4 order while scanning.
 - Results now appear as `.1, .2, .3 ... .254` and then continue into the next subnet, regardless of which worker finishes first.
@@ -277,16 +277,9 @@ Predefined diagnostic modules:
 - Desktop and Start Menu shortcuts remain enabled.
 
 
-## Splash Asset Fix — 22.0.1
+## Splash Asset Fix — 22.0.3
 The splash screen now resolves icon and illustration assets from PyInstaller `_MEIPASS`, the installed application directory, and source mode. The build script validates all three required assets before building.
 =======
 # N-Console
 N-Console — A Windows-based network administration toolkit for SSH, Telnet, RDP, IP scanning, subnet calculation, diagnostics, ping/traceroute, and connection auditing.
 >>>>>>> b1fd001b3170c9c62e9ecaecd3ce04c2b5bea63b
-
-
-## v22.0.2 Scanner console-window fix
-
-- All Python `subprocess.run()` calls now use a Windows `CREATE_NO_WINDOW` wrapper.
-- IP Scanner CLI probes such as `ping`, `arp`, `netsh`, `nbtstat`, and PowerShell run without opening visible console windows.
-- Large scans such as /22 or 1024+ hosts therefore remain inside the N-Console UI instead of creating one window per probe.

@@ -1,6 +1,6 @@
 ; N-Console Professional Installer - x86
 #define MyAppName "N-Console"
-#define MyAppVersion "22.0.1"
+#define MyAppVersion "22.0.3"
 #define MyPublisher "Mr. Neeraj Kumar (IT System Administration)"
 #define MyExeName "N-Console.exe"
 
