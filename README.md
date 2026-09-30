@@ -1,5 +1,5 @@
 <<<<<<< HEAD
-# N-Console 22.0.1 — Final Installer-Ready Source
+# N-Console 22.0.2 — Final Installer-Ready Source
 
 ## Compatibility strategy
 
@@ -283,3 +283,10 @@ The splash screen now resolves icon and illustration assets from PyInstaller `_M
 # N-Console
 N-Console — A Windows-based network administration toolkit for SSH, Telnet, RDP, IP scanning, subnet calculation, diagnostics, ping/traceroute, and connection auditing.
 >>>>>>> b1fd001b3170c9c62e9ecaecd3ce04c2b5bea63b
+
+
+## v22.0.2 Scanner console-window fix
+
+- All Python `subprocess.run()` calls now use a Windows `CREATE_NO_WINDOW` wrapper.
+- IP Scanner CLI probes such as `ping`, `arp`, `netsh`, `nbtstat`, and PowerShell run without opening visible console windows.
+- Large scans such as /22 or 1024+ hosts therefore remain inside the N-Console UI instead of creating one window per probe.

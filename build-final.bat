@@ -3,7 +3,7 @@ setlocal EnableExtensions
 cd /d "%~dp0"
 
 echo ==============================================
-echo N-Console 22.0.1 - FINAL BUILD
+echo N-Console 22.0.2 - FINAL BUILD
  echo ==============================================
 
 

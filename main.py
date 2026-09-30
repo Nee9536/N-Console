@@ -27,8 +27,18 @@ from PySide6.QtWidgets import (
 , QPlainTextEdit)
 
 APP_NAME = "N-Console"
-APP_VERSION = "22.0.1"
+APP_VERSION = "22.0.2"
 DEVELOPER = "Mr. Neeraj Kumar (IT System Administration)"
+
+
+def run_hidden(*args, **kwargs):
+    """Run a subprocess without creating a visible Windows console window."""
+    if platform.system().lower() == "windows":
+        kwargs.setdefault(
+            "creationflags",
+            getattr(subprocess, "CREATE_NO_WINDOW", 0)
+        )
+    return subprocess.run(*args, **kwargs)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 if getattr(sys, "frozen", False):
     BASE_DIR = os.path.dirname(sys.executable)
@@ -1720,7 +1730,7 @@ class ScanWorker(QObject):
                     "if($a){ '{0}|{1}' -f $_.IPAddress,$a.MacAddress } "
                     "}"
                 )
-                p = subprocess.run(
+                p = run_hidden(
                     ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass",
                      "-Command", ps],
                     capture_output=True, text=True, errors="ignore", timeout=5
@@ -1736,7 +1746,7 @@ class ScanWorker(QObject):
                         result[ip] = mac.upper()
             else:
                 # Linux fallback: /sys/class/net/<iface>/address + ip command.
-                p = subprocess.run(
+                p = run_hidden(
                     ["ip", "-o", "-4", "addr", "show"],
                     capture_output=True, text=True, errors="ignore", timeout=3
                 )
@@ -1764,7 +1774,7 @@ class ScanWorker(QObject):
         else:
             cmd = ["ping", "-c", "1", "-W", "1", ip]
         started = time.perf_counter()
-        p = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        p = run_hidden(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         elapsed = round((time.perf_counter() - started) * 1000)
         return p.returncode == 0, elapsed
 
@@ -1795,7 +1805,7 @@ class ScanWorker(QObject):
                 ip_re = re.compile(r"(?<![0-9.])" + re.escape(ip) + r"(?![0-9.])")
 
                 # First try the complete ARP table.
-                p = subprocess.run(
+                p = run_hidden(
                     ["arp", "-a"],
                     capture_output=True, text=True, errors="ignore",
                     timeout=2
@@ -1814,7 +1824,7 @@ class ScanWorker(QObject):
                     + "' -ErrorAction SilentlyContinue | "
                       "Select-Object -ExpandProperty LinkLayerAddress"
                 )
-                p2 = subprocess.run(
+                p2 = run_hidden(
                     ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", ps],
                     capture_output=True, text=True, errors="ignore",
                     timeout=3
@@ -1825,7 +1835,7 @@ class ScanWorker(QObject):
                         return m.group(0).replace(":", "-").upper()
 
                 # Legacy netsh neighbor table fallback.
-                p3 = subprocess.run(
+                p3 = run_hidden(
                     ["netsh", "interface", "ip", "show", "neighbors"],
                     capture_output=True, text=True, errors="ignore",
                     timeout=3
@@ -1837,7 +1847,7 @@ class ScanWorker(QObject):
                             return m.group(0).upper()
 
             else:
-                p = subprocess.run(
+                p = run_hidden(
                     ["ip", "neigh", "show", ip],
                     capture_output=True, text=True, errors="ignore",
                     timeout=2
@@ -1846,7 +1856,7 @@ class ScanWorker(QObject):
                 if m:
                     return m.group(1).replace(":", "-").upper()
 
-                p = subprocess.run(
+                p = run_hidden(
                     ["arp", "-n", ip],
                     capture_output=True, text=True, errors="ignore",
                     timeout=2
@@ -1874,7 +1884,7 @@ class ScanWorker(QObject):
         if platform.system().lower() == "windows":
             # 2) ping -a often resolves local DNS/hosts/NetBIOS names.
             try:
-                p = subprocess.run(
+                p = run_hidden(
                     ["ping", "-a", "-n", "1", "-w", "350", ip],
                     capture_output=True, text=True, errors="ignore", timeout=1.2
                 )
@@ -1893,7 +1903,7 @@ class ScanWorker(QObject):
 
             # 3) nbtstat -A can resolve Windows/NetBIOS hosts even without DNS.
             try:
-                p = subprocess.run(
+                p = run_hidden(
                     ["nbtstat", "-A", ip],
                     capture_output=True, text=True, errors="ignore", timeout=2
                 )
@@ -1914,7 +1924,7 @@ class ScanWorker(QObject):
                     "' -Type PTR -ErrorAction SilentlyContinue | "
                     "Select-Object -ExpandProperty NameHost"
                 )
-                p = subprocess.run(
+                p = run_hidden(
                     ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass",
                      "-Command", ps],
                     capture_output=True, text=True, errors="ignore", timeout=2
@@ -1992,7 +2002,7 @@ class ScanWorker(QObject):
             # targets, a fresh one-packet ping is a lightweight ARP refresh.
             try:
                 if platform.system().lower() == "windows":
-                    subprocess.run(
+                    run_hidden(
                         ["ping", "-n", "1", "-w", "250", ip],
                         stdout=subprocess.DEVNULL,
                         stderr=subprocess.DEVNULL,
@@ -2014,13 +2024,13 @@ class ScanWorker(QObject):
         if mac == "-" and reachable:
             try:
                 if platform.system().lower() == "windows":
-                    subprocess.run(
+                    run_hidden(
                         ["arp", "-d", ip],
                         stdout=subprocess.DEVNULL,
                         stderr=subprocess.DEVNULL,
                         timeout=0.8
                     )
-                    subprocess.run(
+                    run_hidden(
                         ["ping", "-n", "1", "-w", "500", ip],
                         stdout=subprocess.DEVNULL,
                         stderr=subprocess.DEVNULL,
@@ -2638,7 +2648,7 @@ class PingRoutePage(QWidget):
 
         self._ping_sent += 1
         try:
-            result = subprocess.run(
+            result = run_hidden(
                 cmd, capture_output=True, text=True,
                 errors="replace", timeout=3
             )
@@ -2697,7 +2707,7 @@ class PingRoutePage(QWidget):
               else ["traceroute", "-n", target]
 
         try:
-            result = subprocess.run(
+            result = run_hidden(
                 cmd, capture_output=True, text=True,
                 errors="replace", timeout=90
             )
