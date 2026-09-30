@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # N-Console 22.0.1 — Final Installer-Ready Source
 
 ## Compatibility strategy
@@ -278,3 +279,7 @@ Predefined diagnostic modules:
 
 ## Splash Asset Fix — 22.0.1
 The splash screen now resolves icon and illustration assets from PyInstaller `_MEIPASS`, the installed application directory, and source mode. The build script validates all three required assets before building.
+=======
+# N-Console
+N-Console — A Windows-based network administration toolkit for SSH, Telnet, RDP, IP scanning, subnet calculation, diagnostics, ping/traceroute, and connection auditing.
+>>>>>>> b1fd001b3170c9c62e9ecaecd3ce04c2b5bea63b
